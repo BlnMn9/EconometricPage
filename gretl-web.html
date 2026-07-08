@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EconoModel — regression in your browser</title>
+<style>
+  :root{
+    --bg: #10151c;
+    --panel: #161d27;
+    --panel-2: #1c2530;
+    --line: #2a3542;
+    --ink: #e8edf2;
+    --ink-dim: #93a2b3;
+    --accent: #4fd1a5;
+    --accent-dim: #2f6b57;
+    --warn: #e6a23c;
+    --focus: #7cc7ff;
+    --mono: "IBM Plex Mono", "SF Mono", Consolas, monospace;
+    --sans: "IBM Plex Sans", "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:var(--sans); line-height:1.5;
+  }
+  a{ color: var(--accent); }
+
+  /* Visible, high-contrast focus ring for keyboard users */
+  a:focus-visible, button:focus-visible, select:focus-visible,
+  input:focus-visible, textarea:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .visually-hidden{
+    position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+    overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
+  }
+
+  .skip-link{
+    position:absolute; left:8px; top:-48px; background:var(--accent); color:#0a1210;
+    padding:10px 14px; border-radius:6px; font-family:var(--mono); font-size:13px;
+    font-weight:700; z-index:100; transition: top 0.15s ease;
+  }
+  .skip-link:focus{ top:8px; }
+
+  header{
+    padding: 28px 32px 20px; border-bottom:1px solid var(--line);
+    display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px;
+  }
+  header h1{
+    font-family: var(--mono); font-size: 20px; font-weight:600; margin:0;
+    letter-spacing: 0.5px;
+  }
+  header h1 span{ color: var(--accent); }
+  header p{ margin:0; color:var(--ink-dim); font-size:13px; font-family:var(--mono); }
+
+  main{ max-width: 1100px; margin: 0 auto; padding: 28px 32px 80px; }
+
+  .step{
+    background: var(--panel); border:1px solid var(--line); border-radius:8px;
+    padding: 20px 22px; margin-bottom: 20px;
+  }
+  .step-head{ display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .step-num{
+    font-family: var(--mono); font-size:12px; color:var(--bg); background:var(--accent);
+    width:22px; height:22px; border-radius:4px; display:flex; align-items:center; justify-content:center;
+    flex-shrink:0; font-weight:700;
+  }
+  .step-head h2{ font-size:15px; margin:0; font-weight:600; }
+  .step-head p{ margin:2px 0 0; color:var(--ink-dim); font-size:12.5px; }
+
+  label.field-label{
+    display:block; font-family:var(--mono); font-size:12px; color:var(--ink-dim);
+    margin-bottom:6px;
+  }
+
+  textarea{
+    width:100%; min-height:110px; background:var(--panel-2); color:var(--ink);
+    border:1px solid var(--line); border-radius:6px; padding:12px; font-family:var(--mono);
+    font-size:12.5px; resize:vertical;
+  }
+  .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+  input[type=file]{ font-size:12.5px; color:var(--ink-dim); }
+
+  button{
+    background:var(--accent); color:#0a1210; border:none; border-radius:6px;
+    padding:9px 16px; font-family:var(--mono); font-size:12.5px; font-weight:700;
+    cursor:pointer; letter-spacing:0.3px;
+  }
+  button:hover{ filter:brightness(1.08); }
+  button.secondary{
+    background:transparent; color:var(--ink-dim); border:1px solid var(--line);
+    font-weight:500;
+  }
+  button:disabled{ opacity:0.4; cursor:not-allowed; }
+
+  table.preview{ width:100%; border-collapse:collapse; margin-top:12px; font-size:12px; font-family:var(--mono); }
+  table.preview th, table.preview td{
+    border:1px solid var(--line); padding:5px 8px; text-align:right;
+  }
+  table.preview th{ background:var(--panel-2); color:var(--accent); }
+  table.preview td:first-child, table.preview th:first-child{ text-align:left; color:var(--ink-dim); }
+
+  .varlist{ display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+  .var-row{
+    display:flex; align-items:center; gap:10px; padding:7px 10px;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:5px;
+    font-family:var(--mono); font-size:12.5px; flex-wrap:wrap;
+  }
+  .var-row select{
+    background:var(--bg); color:var(--ink); border:1px solid var(--line); border-radius:4px;
+    padding:5px 6px; font-family:var(--mono); font-size:12px; min-height:30px;
+  }
+  .var-name{ flex:1; display:flex; align-items:center; gap:8px; min-width:120px; }
+  .tag{ font-size:10px; padding:2px 6px; border-radius:3px; font-weight:700; letter-spacing:0.5px; }
+  .tag.y{ background:var(--accent); color:#0a1210; }
+  .tag.x{ background:#3a4a5c; color:var(--ink); }
+  .tag.off{ background:transparent; color:var(--ink-dim); border:1px solid var(--line); }
+  .badge-time{ background:#3a3320; color:var(--warn); border:1px solid #5a4a2a; }
+  .badge-missing{ background:#3a2323; color:#e88; border:1px solid #5a3232; }
+
+  #status[role="status"]{ font-family:var(--mono); font-size:12px; color:var(--ink-dim); margin-top:10px; min-height:16px; }
+  #status.err{ color:#ff8c78; font-weight:600; }
+  #status.ok{ color:var(--accent); font-weight:600; }
+
+  #results{ display:none; }
+  .eq{
+    font-family:var(--mono); font-size:13.5px; background:var(--panel-2);
+    border:1px solid var(--line); border-radius:6px; padding:14px 16px; margin-bottom:16px;
+    overflow-x:auto; white-space:nowrap;
+  }
+  .eq .coef{ color:var(--accent); }
+
+  table.results{ width:100%; border-collapse:collapse; font-family:var(--mono); font-size:12.5px; }
+  table.results th, table.results td{ padding:7px 10px; border-bottom:1px solid var(--line); text-align:right; }
+  table.results th{ color:var(--ink-dim); font-weight:600; text-align:right; }
+  table.results td:first-child, table.results th:first-child{ text-align:left; color:var(--ink); }
+  table.results td.sig{ color:var(--accent); font-weight:700; }
+
+  .metrics{ display:flex; gap:22px; flex-wrap:wrap; margin: 18px 0; }
+  .metric{ font-family:var(--mono); }
+  .metric .val{ font-size:20px; font-weight:700; color:var(--accent); }
+  .metric .lbl{ font-size:11px; color:var(--ink-dim); }
+
+  canvas{ max-width:100%; background:var(--panel-2); border-radius:6px; border:1px solid var(--line); }
+
+  .hint{ font-size:11.5px; color:var(--ink-dim); margin-top:8px; font-family:var(--mono); }
+  .loader{
+    display:inline-block; width:11px; height:11px; border:2px solid var(--accent-dim);
+    border-top-color: var(--accent); border-radius:50%; animation: spin 0.7s linear infinite;
+    vertical-align: -1px; margin-right:6px;
+  }
+  @keyframes spin{ to{ transform: rotate(360deg); } }
+
+  @media (prefers-reduced-motion: reduce){
+    .loader{ animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<a href="#main-content" class="skip-link">Skip to main content</a>
+
+<header>
+  <h1>ECONO<span>MODEL</span></h1>
+  <p>OLS regression, computed locally in your browser — Python + statsmodels</p>
+</header>
+
+<div id="pyEnvStatus" role="status" aria-live="polite"
+     style="font-family:var(--mono); font-size:12px; color:var(--ink-dim); padding:10px 32px; border-bottom:1px solid var(--line);">
+  <span class="loader" aria-hidden="true"></span>Starting Python environment...
+</div>
+
+<main id="main-content">
+
+  <section class="step" aria-labelledby="step1-heading">
+    <div class="step-head">
+      <div class="step-num" aria-hidden="true">1</div>
+      <div>
+        <h2 id="step1-heading">Paste or upload your data</h2>
+        <p>CSV format, first row is column names, comma-separated.</p>
+      </div>
+    </div>
+
+    <label class="field-label" for="csvInput">Data (CSV text)</label>
+    <textarea id="csvInput" aria-describedby="csv-hint" placeholder="year,gdp,investment,exports
+2015,100,20,40
+2016,103,21,42
+2017,107,23,45
+...">year,gdp,investment,exports,inflation
+2010,100,18,32,2.1
+2011,103,19,34,3.4
+2012,104,17,33,3.7
+2013,106,20,36,0.9
+2014,110,22,39,-0.2
+2015,113,23,41,-0.7
+2016,114,21,40,-0.6
+2017,119,25,45,2.1
+2018,124,27,49,1.6
+2019,127,28,51,2.3
+2020,118,20,42,3.4
+2021,129,31,56,5.1
+2022,131,29,54,14.4
+2023,135,30,58,11.4
+2024,140,33,62,3.6</textarea>
+    <p id="csv-hint" class="hint">Tip: you can also upload a .csv file below instead of pasting text. The delimiter (comma, semicolon, or tab) and decimal format (1.5 or 1,5) are detected automatically.</p>
+
+    <fieldset style="border:1px solid var(--line); border-radius:6px; padding:10px 14px; margin-top:12px;">
+      <legend class="hint" style="padding:0 6px;">Data layout</legend>
+      <div class="row" style="margin-top:4px;">
+        <label style="display:flex; align-items:center; gap:6px; font-size:12.5px;">
+          <input type="radio" name="orientation" value="columns" checked>
+          Variables in columns, observations in rows <span style="color:var(--ink-dim);">(standard CSV)</span>
+        </label>
+      </div>
+      <div class="row" style="margin-top:6px;">
+        <label style="display:flex; align-items:center; gap:6px; font-size:12.5px;">
+          <input type="radio" name="orientation" value="rows">
+          Variables in rows, observations in columns <span style="color:var(--ink-dim);">(common in stats-office exports)</span>
+        </label>
+      </div>
+      <p class="hint" style="margin-top:8px;">
+        Example of the second layout: first column holds variable names (gdp, inflation, ...),
+        first row holds the time periods. This trips up many stats tools that assume the standard layout.
+      </p>
+    </fieldset>
+
+    <div class="row">
+      <label class="visually-hidden" for="fileInput">Upload a CSV file</label>
+      <input type="file" id="fileInput" accept=".csv">
+      <button class="secondary" id="loadBtn">Load data</button>
+      <button class="secondary" id="clearSavedBtn" type="button" title="Remove the data and settings saved in this browser">Clear saved data</button>
+    </div>
+    <p class="hint" id="autosaveHint">Your data and model setup are saved in this browser and restored after a refresh.</p>
+    <div id="status" role="status" aria-live="polite"></div>
+    <div id="previewWrap" style="display:none;">
+      <h3 class="hint" style="margin-bottom:0;">Preview (first 5 rows)</h3>
+      <div style="overflow-x:auto;">
+        <table class="preview" id="previewTable" aria-label="Preview of first 5 rows of data"></table>
+      </div>
+    </div>
+  </section>
+
+  <section class="step" id="specStep" style="display:none;" aria-labelledby="step2-heading">
+    <div class="step-head">
+      <div class="step-num" aria-hidden="true">2</div>
+      <div>
+        <h2 id="step2-heading">Define the model</h2>
+        <p>Choose the dependent variable (Y), the explanatory variables (X), and any transformations. Columns that look like time are skipped by default.</p>
+      </div>
+    </div>
+    <div class="varlist" id="varList" role="group" aria-label="Variable role and transformation selection"></div>
+    <div class="row" style="margin-top:16px;">
+      <button id="runBtn" type="button">
+        <span id="runLabel">Run OLS regression</span>
+      </button>
+    </div>
+  </section>
+
+  <section class="step" id="results" aria-labelledby="step3-heading">
+    <div class="step-head">
+      <div class="step-num" aria-hidden="true">3</div>
+      <div>
+        <h2 id="step3-heading">Results</h2>
+        <p>Ordinary least squares estimation.</p>
+      </div>
+    </div>
+
+    <div class="eq" id="eqLine" aria-label="Estimated equation"></div>
+
+    <div class="metrics" id="metrics"></div>
+
+    <div style="overflow-x:auto;">
+      <table class="results" id="resultsTable" aria-label="Regression coefficients table"></table>
+    </div>
+
+    <h3 class="hint" style="margin-top:16px;">Residuals vs fitted values</h3>
+    <canvas id="residChart" height="220" role="img" aria-describedby="chart-summary"></canvas>
+    <p id="chart-summary" class="visually-hidden"></p>
+  </section>
+
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>
+<script>
+let pyodideReady = null;
+let dataRows = [];   // array of objects {col: value}
+let columns = [];
+let chart = null;
+
+function startPyodide(){
+  if (!pyodideReady){
+    pyodideReady = (async () => {
+      const pyodide = await loadPyodide();
+      // statsmodels has compiled dependencies (scipy) — these must come from
+      // Pyodide's built-in package repository, not via micropip from PyPI.
+      await pyodide.loadPackage(["numpy", "pandas", "scipy", "statsmodels"]);
+      return pyodide;
+    })();
+  }
+  return pyodideReady;
+}
+
+// Wraps startPyodide with a hard timeout so a blocked/slow network produces
+// a clear error message instead of a spinner that spins forever with no feedback.
+function startPyodideWithTimeout(timeoutMs = 60000){
+  return Promise.race([
+    startPyodide(),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(
+        "Timed out loading the Python environment. This usually means the CDN " +
+        "(cdn.jsdelivr.net) is blocked by your network/firewall/ad-blocker. " +
+        "Try a different network, or disable content blockers for this page."
+      )), timeoutMs)
+    )
+  ]);
+}
+// warm up in background as soon as page loads, and surface any error early
+window.addEventListener("load", () => {
+  const pyStatus = document.getElementById("pyEnvStatus");
+  startPyodideWithTimeout()
+    .then(() => {
+      pyStatus.innerHTML = "✓ Python environment ready — you can run a regression.";
+      pyStatus.style.color = "var(--accent)";
+    })
+    .catch(err => {
+      console.error(err);
+      pyStatus.textContent = err.message;
+      pyStatus.style.color = "#ff8c78";
+    });
+
+  restoreSavedState();
+});
+
+// Tokens that should be treated as "missing" rather than causing a parse error
+const MISSING_TOKENS = new Set(["", "na", "n/a", "n.a.", "null", "nan", "brak", "-", "."]);
+
+// Guesses the field delimiter by counting candidates on the first couple of lines.
+// Handles the common case of European/Polish CSV exports that use ";" instead of ",".
+function detectDelimiter(text){
+  const firstLines = text.trim().split(/\r?\n/).slice(0, 3).join("\n");
+  const counts = {
+    ",": (firstLines.match(/,/g) || []).length,
+    ";": (firstLines.match(/;/g) || []).length,
+    "\t": (firstLines.match(/\t/g) || []).length,
+  };
+  let best = ",";
+  Object.keys(counts).forEach(d => { if (counts[d] > counts[best]) best = d; });
+  return counts[best] > 0 ? best : ",";
+}
+
+// When a single value contains BOTH a comma and a period (e.g. "1,234.56"
+// or "1.234,56"), there's no need to guess at the column level: whichever
+// separator appears LAST is the decimal separator, and every earlier
+// occurrence of the other one is a thousands grouping and can be stripped.
+function resolveMixedSeparators(v){
+  if (!v || !v.includes(",") || !v.includes(".")) return v;
+  const lastComma = v.lastIndexOf(",");
+  const lastDot = v.lastIndexOf(".");
+  if (lastDot > lastComma){
+    // "." is the decimal point; "," are thousands groupings
+    return v.replace(/,/g, "");
+  } else {
+    // "," is the decimal point; "." are thousands groupings
+    return v.replace(/\./g, "").replace(",", ".");
+  }
+}
+
+// Cleans one raw cell: trims whitespace, maps known "missing" tokens to "",
+// and resolves the unambiguous mixed-separator case above. A value with only
+// a comma (no period) is left untouched here — that case is genuinely
+// ambiguous per-value and is resolved per-column, see decideColumnNumberFormat.
+function normalizeCell(raw){
+  let v = (raw || "").trim();
+  if (MISSING_TOKENS.has(v.toLowerCase())) return "";
+  return resolveMixedSeparators(v);
+}
+
+// Parses raw CSV/TSV text into rows of string fields, respecting quoted
+// fields per the CSV convention: a field wrapped in "..." may contain the
+// delimiter itself, a literal newline, or an escaped quote written as "".
+// A naive line.split(delimiter) breaks on any of those — a common real-world
+// case being a text field like "Warsaw, Poland" that contains the delimiter.
+function parseDelimitedText(text, delimiter){
+  const rows = [];
+  let row = [];
+  let field = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++){
+    const c = text[i];
+    if (inQuotes){
+      if (c === '"'){
+        if (text[i + 1] === '"'){ field += '"'; i++; }
+        else { inQuotes = false; }
+      } else {
+        field += c;
+      }
+    } else if (c === '"'){
+      inQuotes = true;
+    } else if (c === delimiter){
+      row.push(field); field = "";
+    } else if (c === "\r"){
+      // ignore, \n (below) ends the row
+    } else if (c === "\n"){
+      row.push(field); field = "";
+      rows.push(row); row = [];
+    } else {
+      field += c;
+    }
+  }
+  if (field.length > 0 || row.length > 0){
+    row.push(field);
+    rows.push(row);
+  }
+  // drop fully blank trailing rows (e.g. trailing newline in the file)
+  return rows.filter(r => !(r.length === 1 && r[0].trim() === ""));
+}
+
+// Reads raw CSV text into a 2D array of string cells, no assumptions about orientation
+function parseCSVMatrix(text){
+  const delimiter = detectDelimiter(text);
+  const rawRows = parseDelimitedText(text, delimiter);
+  const matrix = rawRows.map(row => row.map(v => normalizeCell(v)));
+  return { matrix, delimiter };
+}
+
+// Decides, for one column of raw string values, whether commas in it are
+// thousands separators (US/UK style, e.g. "12,345" = 12345) or a decimal
+// separator (European/Polish style, e.g. "12,3" = 12.3).
+// Rule of thumb: thousands grouping always uses groups of exactly 3 digits.
+//  - Any value with 2+ commas ("1,234,567") can only be thousands grouping.
+//  - A single comma followed by something other than exactly 3 digits
+//    ("3,4" or "3,14159") can only be a decimal separator.
+//  - A single comma followed by exactly 3 digits ("1,234") is genuinely
+//    ambiguous; we default to treating it as thousands separator, since
+//    3-decimal precision is uncommon in typical economic/statistical data.
+function decideColumnNumberFormat(values, delimiter){
+  if (delimiter === ",") return "asis"; // the field delimiter is already comma
+  let hasMultiComma = false;
+  let hasNonThreeDigitSingleComma = false;
+  let anyComma = false;
+  values.forEach(v => {
+    if (!v) return;
+    const commaCount = (v.match(/,/g) || []).length;
+    if (commaCount >= 2) hasMultiComma = true;
+    if (commaCount === 1){
+      anyComma = true;
+      const digitsAfter = v.split(",")[1].length;
+      if (digitsAfter !== 3) hasNonThreeDigitSingleComma = true;
+    }
+  });
+  if (hasMultiComma) return "thousands";
+  if (!anyComma) return "asis";
+  if (hasNonThreeDigitSingleComma) return "decimal";
+  return "thousands"; // ambiguous case — see comment above
+}
+
+function applyColumnNumberFormat(value, format){
+  if (!value) return value;
+  if (format === "thousands") return value.replace(/,/g, "");
+  if (format === "decimal") return value.replace(",", ".");
+  return value;
+}
+
+// Standard matrix transpose: rows become columns and vice versa
+function transposeMatrix(matrix){
+  return matrix[0].map((_, colIndex) => matrix.map(row => row[colIndex]));
+}
+
+// Converts a raw matrix into {headers, rows}, honoring the chosen data layout.
+// "columns": first row = variable names, each following row = one observation (standard CSV).
+// "rows": first column = variable names, each following column = one observation
+// (common export format from statistical offices — a real gap in tools like Gretl,
+// which expect variables in columns and require manual transposing beforehand).
+function matrixToHeadersRows(matrix, orientation){
+  const m = orientation === "rows" ? transposeMatrix(matrix) : matrix;
+  const headers = m[0];
+  const rows = m.slice(1).map(vals => {
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = vals[i]);
+    return obj;
+  });
+  return { headers, rows };
+}
+
+// Detects columns that look like a year/date — by name, or by their values
+// (e.g. plain 4-digit numbers increasing by 1, or dash/slash-separated dates)
+function looksLikeTimeColumn(name, values){
+  const nameHit = /^(year|date|month|quarter|rok|data)$/i.test(name.trim());
+  if (nameHit) return true;
+  const sample = values.slice(0, 10).filter(v => v !== undefined && v !== "");
+  if (sample.length === 0) return false;
+  const yearLike = sample.every(v => /^(19|20)\d{2}$/.test(v.trim()));
+  const dateLike = sample.every(v => /^\d{4}[-\/]\d{1,2}([-\/]\d{1,2})?$/.test(v.trim()));
+  return yearLike || dateLike;
+}
+
+// Counts how many values in a column are empty or not readable as a number
+function countMissing(values){
+  let missing = 0;
+  values.forEach(v => {
+    if (v === undefined || v === null || v.trim() === "" || isNaN(Number(v))){
+      missing++;
+    }
+  });
+  return missing;
+}
+
+function renderPreview(headers, rows){
+  const table = document.getElementById("previewTable");
+  let html = "<tr>" + headers.map(h => `<th scope="col">${h}</th>`).join("") + "</tr>";
+  rows.slice(0,5).forEach(r => {
+    html += "<tr>" + headers.map(h => {
+      const v = r[h];
+      const bad = (v === undefined || v === null || v.trim() === "" || isNaN(Number(v)));
+      return `<td style="${bad ? 'color:#e88;' : ''}">${v === undefined || v === "" ? "—" : v}</td>`;
+    }).join("") + "</tr>";
+  });
+  table.innerHTML = html;
+  document.getElementById("previewWrap").style.display = "block";
+}
+
+function renderVarList(headers){
+  columns = headers;
+  const wrap = document.getElementById("varList");
+  wrap.innerHTML = "";
+  headers.forEach((h, idx) => {
+    const values = dataRows.map(r => r[h]);
+    const isTime = looksLikeTimeColumn(h, values);
+    const missing = countMissing(values);
+    const total = values.length;
+    const transformId = `transform-${idx}`;
+    const roleId = `role-${idx}`;
+
+    const row = document.createElement("div");
+    row.className = "var-row";
+
+    let badges = "";
+    if (isTime) badges += `<span class="tag badge-time">time-like</span>`;
+    if (missing > 0) badges += `<span class="tag badge-missing">${missing}/${total} missing</span>`;
+    const numFormat = columnNumberFormats[h];
+    if (numFormat === "thousands") badges += `<span class="tag" style="background:#243a3a;color:#7fd0d0;border:1px solid #2f5a5a;" title="Commas in this column were read as thousands separators, e.g. 1,234 → 1234">thousands sep.</span>`;
+    if (numFormat === "decimal") badges += `<span class="tag" style="background:#243a3a;color:#7fd0d0;border:1px solid #2f5a5a;" title="Commas in this column were read as a decimal point, e.g. 3,4 → 3.4">decimal comma</span>`;
+
+    row.innerHTML = `
+      <span class="var-name">${h}${badges}</span>
+      <label class="visually-hidden" for="${transformId}">Transformation for ${h}</label>
+      <select id="${transformId}" class="transform-select" data-col="${h}" title="Transformation">
+        <option value="none">no transform</option>
+        <option value="log">log</option>
+        <option value="diff">difference (Δ)</option>
+        <option value="zscore">standardize (z)</option>
+      </select>
+      <label class="visually-hidden" for="${roleId}">Role for ${h}</label>
+      <select id="${roleId}" class="role-select" data-col="${h}">
+        <option value="off" ${isTime ? "selected" : ""}>skip</option>
+        <option value="y">Y (dependent)</option>
+        <option value="x" ${isTime ? "" : "selected"}>X (explanatory)</option>
+      </select>
+    `;
+    wrap.appendChild(row);
+  });
+  document.getElementById("specStep").style.display = "block";
+
+  // enforce only one column at a time can be marked as Y, and persist every
+  // change so a page refresh doesn't lose the current model setup
+  wrap.addEventListener("change", (e) => {
+    if (e.target.classList.contains("role-select") && e.target.value === "y"){
+      wrap.querySelectorAll(".role-select").forEach(s => {
+        if (s !== e.target && s.value === "y") s.value = "x";
+      });
+    }
+    saveState();
+  });
+}
+
+let columnNumberFormats = {}; // header -> "asis" | "decimal" | "thousands", for badge display
+
+const STORAGE_KEY = "econoModel_saved_v1";
+
+// Some browsers (notably Chrome) block localStorage entirely for pages
+// opened directly from disk via file://, throwing a SecurityError on first
+// access. Detect that up front so we can degrade gracefully with a clear
+// message instead of silently failing to save anything.
+function storageAvailable(){
+  try {
+    const k = "__storage_test__";
+    localStorage.setItem(k, "1");
+    localStorage.removeItem(k);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function saveState(){
+  if (!storageAvailable()) return;
+  try {
+    const orientationEl = document.querySelector('input[name="orientation"]:checked');
+    const state = {
+      csvText: document.getElementById("csvInput").value,
+      orientation: orientationEl ? orientationEl.value : "columns",
+      roles: {},
+      transforms: {}
+    };
+    document.querySelectorAll(".role-select").forEach(s => { state.roles[s.dataset.col] = s.value; });
+    document.querySelectorAll(".transform-select").forEach(s => { state.transforms[s.dataset.col] = s.value; });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    console.warn("Could not save state:", e);
+  }
+}
+
+function clearSavedState(){
+  try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignore */ }
+}
+
+// On page load, repopulates the textarea/orientation from localStorage (if
+// any) and re-runs the same load pipeline, then re-applies each column's
+// saved role (Y/X/skip) and transformation once the variable list exists.
+function restoreSavedState(){
+  const status = document.getElementById("status");
+  if (!storageAvailable()){
+    status.textContent = "Note: your browser blocks local storage for this page (common when opening a file directly from disk), so data won't be remembered after a refresh. Hosting the file on a simple local server, or via GitHub Pages, avoids this.";
+    status.className = "err";
+    return;
+  }
+  let raw;
+  try { raw = localStorage.getItem(STORAGE_KEY); } catch (e) { return; }
+  if (!raw){
+    status.textContent = "No saved session found for this page yet (storage is working — nothing to restore).";
+    return;
+  }
+  let state;
+  try { state = JSON.parse(raw); } catch (e) { return; }
+  if (!state || !state.csvText){
+    status.textContent = "Found saved data but it looked corrupted, so it was ignored.";
+    return;
+  }
+
+  document.getElementById("csvInput").value = state.csvText;
+  const radio = document.querySelector(`input[name="orientation"][value="${state.orientation}"]`);
+  if (radio) radio.checked = true;
+
+  runLoadPipeline((success) => {
+    if (!success) return;
+    Object.keys(state.roles || {}).forEach(h => {
+      const sel = document.querySelector(`.role-select[data-col="${CSS.escape(h)}"]`);
+      if (sel) sel.value = state.roles[h];
+    });
+    Object.keys(state.transforms || {}).forEach(h => {
+      const sel = document.querySelector(`.transform-select[data-col="${CSS.escape(h)}"]`);
+      if (sel) sel.value = state.transforms[h];
+    });
+    status.textContent += " Restored from your last session.";
+  });
+}
+
+// Runs the actual parsing/validation/rendering pipeline. Shared by the
+// "Load data" button and by automatic restore-on-refresh, since both need
+// the exact same steps. onDone(success) fires after the try/finally block.
+function runLoadPipeline(onDone){
+  const status = document.getElementById("status");
+  const loadBtn = document.getElementById("loadBtn");
+
+  if (loadBtn.disabled) return;
+  loadBtn.disabled = true;
+  loadBtn.textContent = "Loading...";
+  status.textContent = "";
+  status.className = "";
+
+  setTimeout(() => {
+    let success = false;
+    try {
+      // Strip a UTF-8 BOM (\uFEFF), which Excel commonly prepends to CSV
+      // exports and which would otherwise corrupt the first column's name.
+      const text = document.getElementById("csvInput").value.replace(/^\uFEFF/, "");
+      if (!text.trim()){
+        status.textContent = "Please paste or upload some CSV data first.";
+        status.className = "err";
+        return;
+      }
+
+      const orientation = document.querySelector('input[name="orientation"]:checked').value;
+      const { matrix, delimiter } = parseCSVMatrix(text);
+
+      if (matrix.length < 2){
+        status.textContent = "Need at least a header row and one data row.";
+        status.className = "err";
+        return;
+      }
+      const expectedLen = matrix[0].length;
+      const raggedRow = matrix.findIndex(r => r.length !== expectedLen);
+      if (raggedRow !== -1){
+        status.textContent = `Row ${raggedRow + 1} has ${matrix[raggedRow].length} fields, expected ${expectedLen}. Check for a missing value, a stray delimiter, or an unclosed quote (") on that row.`;
+        status.className = "err";
+        return;
+      }
+
+      const { headers, rows } = matrixToHeadersRows(matrix, orientation);
+
+      const dupes = headers.filter((h, i) => headers.indexOf(h) !== i);
+      if (dupes.length > 0){
+        status.textContent = `Duplicate column name(s): ${[...new Set(dupes)].join(", ")}. Please make column names unique.`;
+        status.className = "err";
+        return;
+      }
+
+      // Decide comma format per column (thousands vs decimal) and apply it —
+      // this must happen per final column, after any transpose, since that's
+      // the only point where we know which values belong to the same variable.
+      columnNumberFormats = {};
+      headers.forEach(h => {
+        const values = rows.map(r => r[h]);
+        const format = decideColumnNumberFormat(values, delimiter);
+        columnNumberFormats[h] = format;
+        if (format !== "asis"){
+          rows.forEach(r => { r[h] = applyColumnNumberFormat(r[h], format); });
+        }
+      });
+
+      dataRows = rows;
+      renderPreview(headers, rows);
+      renderVarList(headers);
+      document.getElementById("results").style.display = "none";
+
+      const delimName = delimiter === ";" ? "semicolon" : delimiter === "\t" ? "tab" : "comma";
+      status.textContent = `Loaded ${rows.length} rows, ${headers.length} columns. Detected delimiter: ${delimName}.`;
+      status.className = "ok";
+      success = true;
+    } catch (err) {
+      console.error(err);
+      status.textContent = "Could not read this data: " + err.message + " (see browser console for details — press F12).";
+      status.className = "err";
+    } finally {
+      loadBtn.disabled = false;
+      loadBtn.textContent = "Load data";
+      if (onDone) onDone(success);
+    }
+  }, 10);
+}
+
+document.getElementById("loadBtn").addEventListener("click", () => {
+  runLoadPipeline((success) => {
+    if (!success) return;
+    saveState();
+    const status = document.getElementById("status");
+    const savedOk = storageAvailable() && localStorage.getItem(STORAGE_KEY);
+    status.textContent += savedOk
+      ? " (saved to this browser for next time)"
+      : " (could NOT save — this browser/page blocks local storage)";
+  });
+});
+
+document.getElementById("clearSavedBtn").addEventListener("click", () => {
+  clearSavedState();
+  const status = document.getElementById("status");
+  status.textContent = "Saved data cleared. This won't affect what's currently on screen — reload the page to start fresh.";
+  status.className = "ok";
+});
+
+document.getElementById("fileInput").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    document.getElementById("csvInput").value = evt.target.result;
+  };
+  reader.readAsText(file);
+});
+
+document.getElementById("runBtn").addEventListener("click", async () => {
+  const roleSelects = document.querySelectorAll(".role-select");
+  let yCol = null;
+  let yCount = 0;
+  const xCols = [];
+  roleSelects.forEach(s => {
+    if (s.value === "y") { yCol = s.dataset.col; yCount++; }
+    if (s.value === "x") xCols.push(s.dataset.col);
+  });
+
+  // collect the chosen transformation for each column (none/log/diff/zscore)
+  const transforms = {};
+  document.querySelectorAll(".transform-select").forEach(s => {
+    transforms[s.dataset.col] = s.value;
+  });
+
+  const status = document.getElementById("status");
+  status.className = "";
+  if (yCount > 1){
+    status.textContent = "Only one Y variable can be selected. Please fix your selection.";
+    status.className = "err";
+    return;
+  }
+  if (!yCol){
+    status.textContent = "Please select exactly one Y variable.";
+    status.className = "err";
+    return;
+  }
+  if (xCols.length === 0){
+    status.textContent = "Please select at least one X variable.";
+    status.className = "err";
+    return;
+  }
+
+  const runBtn = document.getElementById("runBtn");
+  const runLabel = document.getElementById("runLabel");
+  runBtn.disabled = true;
+  runLabel.innerHTML = `<span class="loader" aria-hidden="true"></span>Loading Python environment (first run can take ~15–30s)...`;
+  status.textContent = "";
+
+  try {
+    const pyodide = await startPyodideWithTimeout();
+    runLabel.innerHTML = `<span class="loader" aria-hidden="true"></span>Computing model...`;
+
+    pyodide.globals.set("data_json", JSON.stringify(dataRows));
+    pyodide.globals.set("y_col", yCol);
+    pyodide.globals.set("x_cols", xCols);
+    pyodide.globals.set("transforms_json", JSON.stringify(transforms));
+
+    const pyCode = `
+import pandas as pd
+import numpy as np
+import statsmodels.api as sm
+import json
+
+rows = json.loads(data_json)
+transforms = json.loads(transforms_json)
+df = pd.DataFrame(rows)
+cols = [y_col] + list(x_cols)
+for c in cols:
+    df[c] = pd.to_numeric(df[c], errors="coerce")
+
+def apply_transform(series, kind):
+    if kind == "log":
+        return np.log(series)
+    if kind == "diff":
+        return series.diff()
+    if kind == "zscore":
+        return (series - series.mean()) / series.std()
+    return series
+
+prefix = {"log": "log_", "diff": "d_", "zscore": "z_", "none": ""}
+
+y_name = y_col
+df[y_name + "__t"] = apply_transform(df[y_col], transforms.get(y_col, "none"))
+y_final = prefix[transforms.get(y_col, "none")] + y_col
+
+x_final_names = []
+for c in x_cols:
+    kind = transforms.get(c, "none")
+    df[c + "__t"] = apply_transform(df[c], kind)
+    x_final_names.append(prefix[kind] + c)
+
+use_cols_t = [y_name + "__t"] + [c + "__t" for c in x_cols]
+df = df.dropna(subset=use_cols_t)
+
+Y = df[y_name + "__t"]
+Y.name = y_final
+X = df[[c + "__t" for c in x_cols]]
+X.columns = x_final_names
+X = sm.add_constant(X)
+model = sm.OLS(Y, X).fit()
+
+coefs = []
+for name in model.params.index:
+    coefs.append({
+        "name": "const" if name == "const" else name,
+        "coef": float(model.params[name]),
+        "se": float(model.bse[name]),
+        "t": float(model.tvalues[name]),
+        "p": float(model.pvalues[name]),
+    })
+
+result = {
+    "coefs": coefs,
+    "y_label": y_final,
+    "r2": float(model.rsquared),
+    "r2_adj": float(model.rsquared_adj),
+    "n": int(model.nobs),
+    "f": float(model.fvalue) if model.fvalue is not None else None,
+    "f_p": float(model.f_pvalue) if model.f_pvalue is not None else None,
+    "fitted": [float(v) for v in model.fittedvalues],
+    "resid": [float(v) for v in model.resid],
+    "dw": float(sm.stats.stattools.durbin_watson(model.resid)),
+}
+json.dumps(result)
+`;
+    const resultJson = await pyodide.runPythonAsync(pyCode);
+    const result = JSON.parse(resultJson);
+    renderResults(result, result.y_label, xCols);
+
+    status.textContent = `Done. Number of observations: ${result.n}`;
+    status.className = "ok";
+  } catch (err) {
+    console.error(err);
+    status.textContent = "Error: " + err.message;
+    status.className = "err";
+  } finally {
+    runBtn.disabled = false;
+    runLabel.textContent = "Run OLS regression";
+  }
+});
+
+function fmt(x, d=4){
+  if (x === null || x === undefined || isNaN(x)) return "—";
+  return x.toFixed(d);
+}
+
+function renderResults(result, yLabel, xCols){
+  document.getElementById("results").style.display = "block";
+
+  // equation
+  let eq = `${yLabel} = `;
+  eq += result.coefs.map(c => {
+    const sign = c.coef >= 0 ? "+" : "−";
+    const label = c.name === "const" ? "" : "·" + c.name;
+    return `<span class="coef">${sign} ${fmt(Math.abs(c.coef),3)}</span>${label}`;
+  }).join(" ").replace(/^\+\s*/, "");
+  document.getElementById("eqLine").innerHTML = eq;
+
+  // metrics
+  const metrics = document.getElementById("metrics");
+  metrics.innerHTML = `
+    <div class="metric"><div class="val">${fmt(result.r2,4)}</div><div class="lbl">R²</div></div>
+    <div class="metric"><div class="val">${fmt(result.r2_adj,4)}</div><div class="lbl">Adjusted R²</div></div>
+    <div class="metric"><div class="val">${result.n}</div><div class="lbl">observations</div></div>
+    <div class="metric"><div class="val">${fmt(result.f,2)}</div><div class="lbl">F statistic</div></div>
+    <div class="metric"><div class="val">${fmt(result.f_p,4)}</div><div class="lbl">p-value (F)</div></div>
+    <div class="metric"><div class="val">${fmt(result.dw,3)}</div><div class="lbl">Durbin-Watson</div></div>
+  `;
+
+  // coefficient table
+  const table = document.getElementById("resultsTable");
+  let html = "<tr><th scope=\"col\">Variable</th><th scope=\"col\">Coefficient</th><th scope=\"col\">Std. error</th><th scope=\"col\">t</th><th scope=\"col\">p-value</th></tr>";
+  result.coefs.forEach(c => {
+    const sigClass = c.p < 0.05 ? "sig" : "";
+    html += `<tr>
+      <th scope="row">${c.name === "const" ? "constant" : c.name}</th>
+      <td>${fmt(c.coef)}</td>
+      <td>${fmt(c.se)}</td>
+      <td>${fmt(c.t,2)}</td>
+      <td class="${sigClass}">${fmt(c.p)}${c.p<0.05 ? " *" : ""}</td>
+    </tr>`;
+  });
+  table.innerHTML = html;
+
+  // residual chart
+  const ctx = document.getElementById("residChart").getContext("2d");
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: "scatter",
+    data: {
+      datasets: [{
+        label: "residuals",
+        data: result.fitted.map((f,i) => ({x: f, y: result.resid[i]})),
+        backgroundColor: "#4fd1a5",
+      }]
+    },
+    options: {
+      scales: {
+        x: { title: { display:true, text:"fitted values", color:"#93a2b3" }, ticks:{color:"#93a2b3"}, grid:{color:"#2a3542"} },
+        y: { title: { display:true, text:"residuals", color:"#93a2b3" }, ticks:{color:"#93a2b3"}, grid:{color:"#2a3542"} }
+      },
+      plugins: { legend: { display:false } }
+    }
+  });
+
+  // text alternative for the chart, for screen reader users
+  const minR = Math.min(...result.resid).toFixed(2);
+  const maxR = Math.max(...result.resid).toFixed(2);
+  document.getElementById("chart-summary").textContent =
+    `Scatter plot of ${result.resid.length} residuals against fitted values. Residuals range from ${minR} to ${maxR}. See the coefficient table above for exact per-observation values.`;
+
+  document.getElementById("results").scrollIntoView({behavior:"smooth", block:"start"});
+}
+</script>
+
+</body>
+</html>
